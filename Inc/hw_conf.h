@@ -131,6 +131,7 @@ Maintainer: Miguel Luis and Gregory Cristian
 
 #define REGION_EU868        1
 //#define REGION_US915        1
+//#define USE_BAND_915
 //#define REGION_AS923			  1
 //#undef REGION_EU868
 /* debug swicthes in debug.h */

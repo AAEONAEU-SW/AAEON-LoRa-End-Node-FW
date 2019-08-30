@@ -122,18 +122,19 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   //MX_ADC_Init();
-  MX_USART2_UART_Init();
+	MX_USART1_UART_Init();
   MX_I2C1_Init();
 	
 
   /* USER CODE BEGIN 2 */
 	
-	//LECTURE MEMOIRE FLASH	
+	//LECTURE MEMOIRE FLASH
+#if 1	
 	/***********************************************************/
 	unsigned long Address_appkey;
 	unsigned long Address_appeui;
 	unsigned char z;
-	
+
 	Address_appkey = EEPROM_SYSTEM_ADDRESS_APPKEY;
 	Address_appeui = EEPROM_SYSTEM_ADDRESS_APPEUI;
 	
@@ -148,6 +149,7 @@ int main(void)
 		AppEui[z] = (*(__IO uint8_t*)(Address_appeui));
 		Address_appeui+=1;
 	}
+#endif	
 	
 	/*************************************************************/
 	

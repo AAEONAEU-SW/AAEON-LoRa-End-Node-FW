@@ -136,7 +136,7 @@ void HW_Init( void )
 
     HW_RTC_Init( );
     
-    vcom_Init( );
+    //vcom_Init( );	//remove when uart2 used for ADC
     
     //BSP_sensor_Init( );
     

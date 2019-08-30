@@ -60,7 +60,8 @@ bool MessageUart = false;
 int cpt_lora =0;
 uint8_t buff[4];
 
-double batterie;
+//double batterie;
+uint8_t batterie;
 int batt;
 
 
@@ -75,218 +76,39 @@ long appeui_uart;
 uint8_t buff_appkey[3] = {0x46,0x0D, 0x0B};
 uint8_t buff_appeui[3] = {0x35,0x0D, 0x0F};
 
-
-// I2C HANDLER VARIABLE
-extern I2C_HandleTypeDef hi2c1;
-
-uint8_t eep_buf[8] = {0x00,'L',0x01,'o',0x02,'R',0x03,'a'};
-
-uint32_t tchannel=0;
-uint32_t rchannel=0;
-uint32_t pkgcount=0;
-uint32_t bytcount=0;
-
-RadioEvents_t RFEvents;
-/* RF Testing */
-#if defined( REGION_EU868 )
-
-#define RF_FREQUENCY                                868100000 // Hz
-
-#elif defined( USE_BAND_915 )
-
-#define RF_FREQUENCY                                915000000 // Hz
-
-#else
-
-    #error "Please define a frequency band in the compiler options."
-
-#endif
-
-#define TX_OUTPUT_POWER                             10        // 10 dBm 10mW  //20 // 20 dBm 100mW
-
-#define LORA_BANDWIDTH                              0         // [0: 125 kHz,
-                                                              //  1: 250 kHz,
-                                                              //  2: 500 kHz,
-                                                              //  3: Reserved]
-#define LORA_SPREADING_FACTOR                       9         // [SF7..SF12]
-#define LORA_CODINGRATE                             1         // [1: 4/5,
-                                                              //  2: 4/6,
-                                                              //  3: 4/7,
-                                                              //  4: 4/8]
-#define LORA_SYMBOL_TIMEOUT                         128         // Symbols  																															
-#define LORA_PREAMBLE_LENGTH                        8         // Same for Tx and Rx
-#define LORA_FIX_LENGTH_PAYLOAD_ON                  false
-#define LORA_IQ_INVERSION_ON                        false
-
-//ring buffer
-uint8_t rbuf[LORA_PREAMBLE_LENGTH] = {0};
-uint32_t rcount=0;
-uint32_t pcount=0;
-
-#define print(...) u2Send(__VA_ARGS__)	
-void u2Send(char *format, ... )
+#define print(...) u1Send(__VA_ARGS__)	
+void u1Send(char *format, ... )
 {
 	uint16_t len;
-	uint8_t tbuf[1024];
+	uint8_t tbuf[512];
   va_list args;
   va_start(args, format);
 	
 	len = vsprintf(tbuf, format, args);
-	HAL_UART_Transmit(&huart2, tbuf, len, HAL_MAX_DELAY);
+	HAL_UART_Transmit(&huart1, tbuf, len, HAL_MAX_DELAY);
 }
 
-void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr )
+// ADC AT Thermistor 103AT-11
+/* value for 103AT-11 */
+#define ADC_FULL_SCALE	4096
+#define R1          10.0
+#define R25C        10.0
+#define B           3435
+#define ABS_ZERO    273.15
+#define T25C        298.15
+#define VDDAMV      3300.0 /* use 3300.0 for 3.3V system */
+
+
+float NtcUpdate(int16_t raw)
 {
-	/* Blue led flashes */
-	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
-	//			HAL_Delay(200);
-	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6); 
-	//			HAL_Delay(200);
-	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6); 
-	//			HAL_Delay(200);
-	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
-	//			HAL_Delay(200);
-	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6); 
-	//			HAL_Delay(200);
-	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6); 
-			
-	//for(int i=0;i<size;i++)
-	//	print("%.02X ",payload[i]);
-    
-	//print("\n\r size:%d \n\r",size);
-	//print("rssi:%d\n\r",rssi);
-	//print("snr:%d\n\r",snr);
-	//for(int i=0;i<size;i++)
-	//	HAL_UART_Transmit(&huart2, payload+i, 1, HAL_MAX_DELAY);
-	//for(int i=0;i<size;i++)
-	//{
-	//	if(payload[i]=='E')
-	//		pkgcount++;
-	//}
-	
-	//sprintf(rbuf,"package number:%d \n\r",pkgcount);
-	//HAL_UART_Transmit(&huart2, rbuf, strlen(rbuf), HAL_MAX_DELAY);
-	bytcount+=size;
-	sprintf(rbuf,"bytes number:%d \n\r",bytcount);
-	HAL_UART_Transmit(&huart2, rbuf, strlen(rbuf), HAL_MAX_DELAY);	
-	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
-}
-
-void txCarrierTesting()
-{
-    // Radio initialization
-    Radio.Init( NULL );
-
-    Radio.SetChannel( tchannel );
-
-    Radio.SetTxConfig( MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
-                                   LORA_SPREADING_FACTOR, LORA_CODINGRATE,
-                                   LORA_PREAMBLE_LENGTH, LORA_FIX_LENGTH_PAYLOAD_ON,
-                                   true, 0, 0, LORA_IQ_INVERSION_ON, 3000 );
-		
-		//Radio.SetSyncWord( LORA_MAC_PUBLIC_SYNCWORD );
-		
-	// Sets the radio in Tx mode
-	uint32_t tc=0;
-	  while(1)
-		{
-			uint8_t rc[32]={0};
-			//UART_Received_Char_Nb=0;
-			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
-			Radio.Send( "01234567", 8 );
-			HAL_Delay(256);
-			tc++;
-			sprintf(rc,"%d\n\r",tc);
-			HAL_UART_Transmit(&huart2, rc, strlen(rc), HAL_MAX_DELAY); // Replying by the end frame
-			if(HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_13) == GPIO_PIN_RESET) //B1 pressed
-				break;			
-		}		
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET); //LED3
-		
-}
-
-void txNoCarrierTesting()
-{
-    // Radio initialization
-    Radio.Init( NULL );
-    Radio.SetChannel( tchannel );
-
-    Radio.SetTxConfig( MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
-                                   LORA_SPREADING_FACTOR, LORA_CODINGRATE,
-                                   LORA_PREAMBLE_LENGTH, LORA_FIX_LENGTH_PAYLOAD_ON,
-                                   true, 0, 0, LORA_IQ_INVERSION_ON, 3000 );
-
-    /**********************************************/
-    /*                  WARNING                   */
-    /* The below settings can damage the chipset  */
-    /* if wrongly used. DO NOT CHANGE THE VALUES! */
-    /*                                            */
-    /**********************************************/
-
-    Radio.Write( 0x4B, 0x7B );
-    Radio.Write( 0x3D, 0xAF );
-    Radio.Write( 0x1e, 0x08 );
-    Radio.Write( 0x4C, 0xC0 );
-    Radio.Write( 0x4D, 0x03 );
-    Radio.Write( 0x5A, 0x87 );
-    Radio.Write( 0x63, 0x60 );
-    Radio.Write( 0x01, 0x83 );
-		
-		while(1)
-		{
-			Radio.Send( NULL, 0 );
-			HAL_Delay(256);
-			if(HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_13) == GPIO_PIN_RESET) //B1 pressed
-				break;			
-		}
-}
-
-void rxTesting()
-{
-		pkgcount=0;
-	  bytcount=0;
-    // Radio initialization
-    RFEvents.RxDone = OnRxDone;
-		
-    Radio.Init( &RFEvents );
-
-    switch(rchannel)
-		{
-			case 868100000:
-				rchannel = 868300000;
-				HAL_UART_Transmit(&huart2, "868.3 freq.\n\r", strlen("868.1 freq.\n\r"), HAL_MAX_DELAY);
-				break;
-			case 868300000:
-				rchannel = 868500000;
-				HAL_UART_Transmit(&huart2, "868.5 freq.\n\r", strlen("868.3 freq.\n\r"), HAL_MAX_DELAY);
-				break;
-			case 868500000:
-			default:
-				rchannel=868100000;
-				HAL_UART_Transmit(&huart2, "868.1 freq.\n\r", strlen("868.5 freq.\n\r"), HAL_MAX_DELAY);
-			break;
-		}
-		
-    Radio.SetChannel( rchannel );
-
-#if 1
-
-    Radio.SetRxConfig( MODEM_LORA, LORA_BANDWIDTH, LORA_SPREADING_FACTOR,
-                                   LORA_CODINGRATE, 0, LORA_PREAMBLE_LENGTH,
-                                   LORA_SYMBOL_TIMEOUT, LORA_FIX_LENGTH_PAYLOAD_ON,
-                                   0, true, 0, 0, LORA_IQ_INVERSION_ON, true );
-		//Radio.SetSyncWord( LORA_MAC_PUBLIC_SYNCWORD );
-#else
-
-    Radio.SetRxConfig( MODEM_FSK, FSK_BANDWIDTH, FSK_DATARATE,
-                                  0, FSK_AFC_BANDWIDTH, FSK_PREAMBLE_LENGTH,
-                                  0, FSK_FIX_LENGTH_PAYLOAD_ON, 0, true,
-                                  0, 0, false, true );
-
-#endif
-    
-    Radio.Rx( 0 ); // Continuous Rx
-
+    float adc_in;
+    float Rt;
+    float Tk,Tc;
+    adc_in = (float)raw / VDDAMV;
+    Rt = R1 * adc_in / (1.0 - adc_in);
+    Tk = 1.0 / (log(Rt / R25C) / B + 1.0/T25C);
+    Tc = Tk - ABS_ZERO;
+    return(Tc);
 }
 
 /* MAIN FUNCTION THAT RUNS THE LORA STATE MACHINE */ 
@@ -296,32 +118,53 @@ void appli ()
 	
 	batterie = HW_GetBatteryLevel( );
 	batt = 1800 + (7.08 * HW_GetBatteryLevel());
-
+	
+	print(".");
+	
 	while(1)
 	{
 		/* STARTING AND INITIALIZING ADC */
 //		HAL_ADC_Init(&hadc);
 //		HAL_ADC_Start(&hadc);
-		
+
+
 		/* UART RECEPTION */ 
-		HAL_UART_Receive_IT(&huart1, buff, 4);
-		HAL_UART_Receive_IT(&huart2, buff, 4);
-		
-		// RECEIVING THE APP_KEY VIA UART (frame ended by  0x46 0x0D 0x0B)
-		if(((UART_Receive[UART_Received_Char_Nb-3] == 0x46 && UART_Receive[UART_Received_Char_Nb-2] == 0x0D) && (UART_Receive[UART_Received_Char_Nb-1] == 0x0B)) &&(UART_Received_Char_Nb == 19))
+		if(HAL_OK == HAL_UART_Receive(&huart1, buff, 1,10))
 		{
-			HAL_UART_Transmit(&huart2, buff_appkey, 3, HAL_MAX_DELAY); // Replying by the end frame
+			UART_Receive1[UART_Received_Char_Nb1++]=buff[0];
+			if(UART_Received_Char_Nb1==96)
+				UART_Received_Char_Nb1=0;
+		}
+		
+		//print to uart1 for testing purpose
+		if(buff[0]=='g')
+		{
+		float temp = 0.0 ;
+		uint16_t adc2 = HW_AdcReadChannel( ADC_CHANNEL_2 ); 
+		uint16_t adc3 = HW_AdcReadChannel( ADC_CHANNEL_3 ); 
+		
+		//print raw data
+		print("ADC2 = 0x%04X  \r\n", adc2);
+		print("ADC3 = 0x%04X  \r\n", adc3);
+		
+		temp = NtcUpdate(adc3);
+		printf( "103AT-11 temp: %f\r\n", temp);
+			buff[0]=0;
+		}
+		// RECEIVING THE APP_KEY VIA UART (frame ended by  0x46 0x0D 0x0B)
+		if(((UART_Receive1[UART_Received_Char_Nb1-3] == 0x46 && UART_Receive1[UART_Received_Char_Nb1-2] == 0x0D) && (UART_Receive1[UART_Received_Char_Nb1-1] == 0x0B)) &&(UART_Received_Char_Nb1 == 19))
+		{
+			HAL_UART_Transmit(&huart1, buff_appkey, 3, HAL_MAX_DELAY); // Replying by the end frame
 			
-			MessageSize = UART_Received_Char_Nb;			
-			UART_Received_Char_Nb = 0;
+			MessageSize = UART_Received_Char_Nb1;			
+			UART_Received_Char_Nb1 = 0;
 			
 			//WRITE IN FLASH MEMORY
 				
 				unsigned long Address;
 				uint32_t PageError;
 				
-				appkey_uart = UART_Receive[3]<<24 | UART_Receive[2]<<16 | UART_Receive[1]<<8 | UART_Receive[0];  // Format the 4 first bytes 
-				 
+				appkey_uart = UART_Receive1[3]<<24 | UART_Receive1[2]<<16 | UART_Receive1[1]<<8 | UART_Receive1[0];  // Format the 4 first bytes 
 				FLASH_EraseInitTypeDef EraseInit;						
 				
 				Address = EEPROM_SYSTEM_ADDRESS_APPKEY;					// Adress of the appkey in the memory
@@ -338,13 +181,13 @@ void appli ()
 				HAL_FLASHEx_Erase(&EraseInit, &PageError);			//	Erase the page
 				HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, Address, appkey_uart); // Write 4 1st bytes of the appkey
 				
-				appkey_uart = UART_Receive[7]<<24 | UART_Receive[6]<<16 | UART_Receive[5]<<8 | UART_Receive[4];
+				appkey_uart = UART_Receive1[7]<<24 | UART_Receive1[6]<<16 | UART_Receive1[5]<<8 | UART_Receive1[4];
 				HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, Address+4, appkey_uart); //Write 4 2nd bytes of the appkey
 				
-				appkey_uart = UART_Receive[11]<<24 | UART_Receive[10]<<16 | UART_Receive[9]<<8 | UART_Receive[8];
+				appkey_uart = UART_Receive1[11]<<24 | UART_Receive1[10]<<16 | UART_Receive1[9]<<8 | UART_Receive1[8];
 				HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, Address+8, appkey_uart); // Write 4 3rd bytes of the appkey
 				
-				appkey_uart = UART_Receive[15]<<24 | UART_Receive[14]<<16 | UART_Receive[13]<<8 | UART_Receive[12];
+				appkey_uart = UART_Receive1[15]<<24 | UART_Receive1[14]<<16 | UART_Receive1[13]<<8 | UART_Receive1[12];
 				HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, Address+12, appkey_uart); // Write 4 last bytes of the appkey
 												
 				HAL_FLASH_Lock ();									// Lock the memory
@@ -355,19 +198,19 @@ void appli ()
 		
 		
 		// RECEIVING THE APP_EUI VIA UART (frame ended by  0x35 0x0D 0x0F)
-		if(((UART_Receive[UART_Received_Char_Nb-3] == 0x35 && UART_Receive[UART_Received_Char_Nb-2] == 0x0D) && (UART_Receive[UART_Received_Char_Nb-1] == 0x0F)) &&(UART_Received_Char_Nb == 11))
+		if(((UART_Receive1[UART_Received_Char_Nb1-3] == 0x35 && UART_Receive1[UART_Received_Char_Nb1-2] == 0x0D) && (UART_Receive1[UART_Received_Char_Nb1-1] == 0x0F)) &&(UART_Received_Char_Nb1 == 11))
 		{
-			HAL_UART_Transmit(&huart2, buff_appeui, 3, HAL_MAX_DELAY);
+			HAL_UART_Transmit(&huart1, buff_appeui, 3, HAL_MAX_DELAY);
 			
-			MessageSize = UART_Received_Char_Nb;
-			UART_Received_Char_Nb = 0;
+			MessageSize = UART_Received_Char_Nb1;
+			UART_Received_Char_Nb1 = 0;
 			
 			//WRITE IN FLASH MEMORY
 				
 				unsigned long Address_eui;
 				uint32_t PageError;
 				
-				appeui_uart = UART_Receive[3]<<24 | UART_Receive[2]<<16 | UART_Receive[1]<<8 | UART_Receive[0];
+				appeui_uart = UART_Receive1[3]<<24 | UART_Receive1[2]<<16 | UART_Receive1[1]<<8 | UART_Receive1[0];
 				 
 				FLASH_EraseInitTypeDef EraseInit;
 				
@@ -384,7 +227,7 @@ void appli ()
 				HAL_FLASHEx_Erase(&EraseInit, &PageError);				
 				HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, Address_eui, appeui_uart);
 				
-				appeui_uart = UART_Receive[7]<<24 | UART_Receive[6]<<16 | UART_Receive[5]<<8 | UART_Receive[4];
+				appeui_uart = UART_Receive1[7]<<24 | UART_Receive1[6]<<16 | UART_Receive1[5]<<8 | UART_Receive1[4];
 				HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, Address_eui+4, appeui_uart);
 																
 				HAL_FLASH_Lock ();					
@@ -393,24 +236,24 @@ void appli ()
 		
 		
 		//Reading current appeui (frame ended by  0x53 0xD0 0xF0)
-		if((UART_Receive[UART_Received_Char_Nb-3] == 0x53 && UART_Receive[UART_Received_Char_Nb-2] == 0xD0) && (UART_Receive[UART_Received_Char_Nb-1] == 0xF0))
+		if((UART_Receive1[UART_Received_Char_Nb1-3] == 0x53 && UART_Receive1[UART_Received_Char_Nb1-2] == 0xD0) && (UART_Receive1[UART_Received_Char_Nb1-1] == 0xF0))
 		{
-			HAL_UART_Transmit(&huart2, AppEui, 8, HAL_MAX_DELAY);
-			UART_Received_Char_Nb = 0;
+			HAL_UART_Transmit(&huart1, AppEui, 8, HAL_MAX_DELAY);
+			UART_Received_Char_Nb1 = 0;
 		}
 		
 		//Reading current appkey (frame ended by  0x64 0xD0 0xB0)
-		if((UART_Receive[UART_Received_Char_Nb-3] == 0x64 && UART_Receive[UART_Received_Char_Nb-2] == 0xD0) && (UART_Receive[UART_Received_Char_Nb-1] == 0xB0))
+		if((UART_Receive1[UART_Received_Char_Nb1-3] == 0x64 && UART_Receive1[UART_Received_Char_Nb1-2] == 0xD0) && (UART_Receive1[UART_Received_Char_Nb1-1] == 0xB0))
 		{
-			HAL_UART_Transmit(&huart2, AppKey, 16, HAL_MAX_DELAY);
-			UART_Received_Char_Nb = 0;
+			HAL_UART_Transmit(&huart1, AppKey, 16, HAL_MAX_DELAY);
+			UART_Received_Char_Nb1 = 0;
 		}
 		
 		//Reading current DevEui (frame ended by  0xF4 0xD0 0xD3)
-		if((UART_Receive[UART_Received_Char_Nb-3] == 0xF4 && UART_Receive[UART_Received_Char_Nb-2] == 0xD0) && (UART_Receive[UART_Received_Char_Nb-1] == 0xD3))
+		if((UART_Receive1[UART_Received_Char_Nb1-3] == 0xF4 && UART_Receive1[UART_Received_Char_Nb1-2] == 0xD0) && (UART_Receive1[UART_Received_Char_Nb1-1] == 0xD3))
 		{
-			HAL_UART_Transmit(&huart2, DevEui, 8, HAL_MAX_DELAY);
-			UART_Received_Char_Nb = 0;
+			HAL_UART_Transmit(&huart1, DevEui, 8, HAL_MAX_DELAY);
+			UART_Received_Char_Nb1 = 0;
 		}
 		
 		
@@ -433,6 +276,7 @@ void appli ()
 		{	  
 			case DEVICE_STATE_INIT:
 			{
+				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET); //SWITCH ON Led
 				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_SET); //SWITCH ON Led
 				HAL_Delay(100);
 								
@@ -482,9 +326,10 @@ void appli ()
 			low_power();
 		
 		#else
+
 		if(UART_Received_Char_Nb1)
 		{
-			HAL_UART_Transmit(&huart2, UART_Receive1, UART_Received_Char_Nb1, HAL_MAX_DELAY);
+			HAL_UART_Transmit(&huart1, UART_Receive1, UART_Received_Char_Nb1, HAL_MAX_DELAY);
 			UART_Received_Char_Nb1 = 0;
 		}
 		
@@ -513,7 +358,7 @@ void LoraTxData( lora_AppData_t *AppData, FunctionalState* IsTxConfirmed)
 		calcul();
 		
 		//batterie = HW_GetBatteryLevel( )*100;
-		batt = 1800 + (7 * HW_GetBatteryLevel());
+		//batt = 1800 + (7 * HW_GetBatteryLevel());
 		
 		temperature = ( int16_t )( round(temper*10) );     /* in ?C * 10 */
 		humidity    = ( uint16_t )( humid );      
@@ -532,8 +377,8 @@ void LoraTxData( lora_AppData_t *AppData, FunctionalState* IsTxConfirmed)
 		AppData->Buff[i++] = humidity & 0xFF;
 		
 		/* BATTERY */				
-		AppData->Buff[i++] = ( batt>> 8 ) & 0xFF;
-		AppData->Buff[i++] = batt & 0xFF;
+		AppData->Buff[i++] = HW_GetBatteryLevel( );//( batt>> 8 ) & 0xFF;
+		AppData->Buff[i++] = 0;//batt & 0xFF;
 		
 		/* BAROMETER */
 		#if defined ( GROOVE_CONNECTED )		
