@@ -97,7 +97,6 @@ void DBG_Init( void );
 
 #endif /*TRACE*/
 
-
 #else /* DEBUG */
 
 #define DBG_GPIO_WRITE( gpio, n, x )

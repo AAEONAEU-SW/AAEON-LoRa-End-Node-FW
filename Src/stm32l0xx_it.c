@@ -38,12 +38,15 @@
 /* USER CODE BEGIN 0 */
 
 
+extern uint8_t 	UART_Receive1[96];				//Variables globales permettant le traitement des messages reçus sur l'UART
+extern uint8_t 	UART_Received_Char_Nb1;	
 extern uint8_t 	UART_Receive[96];				//Variables globales permettant le traitement des messages reçus sur l'UART
 extern uint8_t 	UART_Received_Char_Nb;	
 
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 
 /******************************************************************************/
@@ -126,6 +129,37 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32l0xx.s).                    */
 /******************************************************************************/
+/**
+* @brief This function handles USART2 global interrupt / USART2 wake-up interrupt through EXTI line 26.
+*/
+void USART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART1_IRQn 0 */
+	
+	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);			
+	//HAL_Delay(300);
+	
+	if (USART1->ISR & USART_ISR_RXNE)		//Check if RX FIFO is not empty
+	{
+		//Store the received character in global variable UART_Receive
+		UART_Receive1[UART_Received_Char_Nb1] = (uint8_t)(USART1->RDR);
+		
+		//Increase the received characters counter
+		UART_Received_Char_Nb1 ++;
+				
+	}
+	
+	
+	else if (USART1->ISR & USART_ISR_ORE)		//Check if ISR reports an OverRun error
+	{
+		__HAL_UART_CLEAR_IT(&huart1,UART_CLEAR_OREF);												//Clear OverRun Error Flag
+	}
+  /* USER CODE END USART1_IRQn 0 */
+  HAL_UART_IRQHandler(&huart1);
+  /* USER CODE BEGIN USART1_IRQn 1 */
+
+  /* USER CODE END USART1_IRQn 1 */
+}
 
 /**
 * @brief This function handles USART2 global interrupt / USART2 wake-up interrupt through EXTI line 26.

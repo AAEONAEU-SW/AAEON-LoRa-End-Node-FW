@@ -50,12 +50,12 @@ ADC_HandleTypeDef hadc;
 
 I2C_HandleTypeDef hi2c1;
 
+UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 
-extern uint8_t DevEui[];
 extern uint8_t AppKey[];
 extern uint8_t AppEui[]; 
 
@@ -66,6 +66,7 @@ extern uint8_t AppEui[];
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC_Init(void);
+static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 
@@ -75,7 +76,23 @@ static void MX_I2C1_Init(void);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
-																		
+#if 1
+#ifdef __GNUC__
+  #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+  #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif /* __GNUC__ */
+
+PUTCHAR_PROTOTYPE
+{
+  /* Place your implementation of fputc here */
+  /* e.g. write a character to the EVAL_COM1 and Loop until the end of transmission */
+  HAL_UART_Transmit(&huart1, (uint8_t*)&ch, 1,0xFFFF); 
+
+  return ch;
+}
+#endif
+
 /* USER CODE END 0 */
 
 int main(void)
@@ -111,8 +128,7 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 	
-	//LECTURE MEMOIRE FLASH
-	
+	//LECTURE MEMOIRE FLASH	
 	/***********************************************************/
 	unsigned long Address_appkey;
 	unsigned long Address_appeui;
@@ -132,9 +148,6 @@ int main(void)
 		AppEui[z] = (*(__IO uint8_t*)(Address_appeui));
 		Address_appeui+=1;
 	}
-	
-//	memcpy(DevEui,AppEui,8);
-	
 	
 	/*************************************************************/
 	
@@ -290,6 +303,22 @@ static void MX_I2C1_Init(void)
 
 }
 
+/* USART1 init function */
+static void MX_USART1_UART_Init(void)
+{
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+}
+
 /* USART2 init function */
 static void MX_USART2_UART_Init(void)
 {
@@ -338,7 +367,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB14 */
-  GPIO_InitStruct.Pin = GPIO_PIN_14;
+  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;	//add 13 15 Gary
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);

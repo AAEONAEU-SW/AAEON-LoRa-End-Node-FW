@@ -130,7 +130,9 @@ Maintainer: Miguel Luis and Gregory Cristian
 /* --------Preprocessor compile swicth------------ */
 
 #define REGION_EU868        1
-
+//#define REGION_US915        1
+//#define REGION_AS923			  1
+//#undef REGION_EU868
 /* debug swicthes in debug.h */
 //#define DEBUG
 //#define TRACE

@@ -4,7 +4,7 @@ INCLUDE FILE OF THE LORAWAN APPLICATION
 
 */
 
- //INCLUDES  *********************************************************************
+//INCLUDES  *********************************************************************
 
 #include "hw.h"
 #include "low_power.h"
@@ -19,7 +19,7 @@ INCLUDE FILE OF THE LORAWAN APPLICATION
 
 // DEFINES  **********************************************************************
 
-#define APP_TX_DUTYCYCLE                         300000  // 300 Secondes
+#define APP_TX_DUTYCYCLE                         1000 //2sec //300000  // 5 mins
 /*!
  * LoRaWAN Adaptive Data Rate
  * @note Please note that when ADR is enabled the end-device should be static
@@ -47,7 +47,7 @@ INCLUDE FILE OF THE LORAWAN APPLICATION
 //#define GROOVE_CONNECTED                 1
 
 // Activate or not the low power mode
-#define LOW_POWER_ACTIVATED                 1
+//#define LOW_POWER_ACTIVATED                 1
 
 #define EEPROM_SYSTEM_ADDRESS_APPKEY  	((uint32_t)0x08015000)														
 #define EEPROM_SYSTEM_ADDRESS_APPEUI 		EEPROM_SYSTEM_ADDRESS_APPKEY+FLASH_PAGE_SIZE

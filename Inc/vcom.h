@@ -127,7 +127,7 @@ void vcom_Print( void);
 void vcom_Send_Lp( char *format, ... );
 
 /* Exported macros -----------------------------------------------------------*/
-#if 0   //1
+#if 1
 #define PRINTF(...)            vcom_Send(__VA_ARGS__)
 #else
 #define PRINTF(...)

@@ -52,7 +52,7 @@
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define BUFSIZE 256
-#define USARTX_IRQn USART2_IRQn
+//#define USARTX_IRQn USART2_IRQn
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 
@@ -79,9 +79,9 @@ void vcom_Init(void)
       - Parity = ODD parity
       - BaudRate = 921600 baud
       - Hardware flow control disabled (RTS and CTS signals) */
-  UartHandle.Instance        = USARTX;
+  UartHandle.Instance        = USART1;//USARTX;
   
-  UartHandle.Init.BaudRate   = 115200;
+  UartHandle.Init.BaudRate   = 9600;
   UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
   UartHandle.Init.StopBits   = UART_STOPBITS_1;
   UartHandle.Init.Parity     = UART_PARITY_NONE;
@@ -94,8 +94,8 @@ void vcom_Init(void)
     Error_Handler(); 
   }
   
-  HAL_NVIC_SetPriority(USARTX_IRQn, 0x1, 0);
-  HAL_NVIC_EnableIRQ(USARTX_IRQn);
+  //HAL_NVIC_SetPriority(USART1_IRQn, 0x1, 0);
+  //HAL_NVIC_EnableIRQ(USART1_IRQn);
 }
 int Debug=2;																	
 /*int	PrintUart(uint8_t Niveau, const char* Format, int	Arg1, int Arg2, int Arg3)
@@ -156,7 +156,7 @@ void vcom_Send( char *format, ... )
   }
   RESTORE_PRIMASK();
   
-  HAL_NVIC_SetPendingIRQ(USARTX_IRQn);
+  HAL_NVIC_SetPendingIRQ(USART1_IRQn);
     
   va_end(args);
 }
@@ -177,7 +177,7 @@ void vcom_Print( void)
     
     HAL_UART_Transmit(&UartHandle,(uint8_t *) CurChar, 1, 300);    
   }
-  HAL_NVIC_ClearPendingIRQ(USARTX_IRQn);
+  HAL_NVIC_ClearPendingIRQ(USART1_IRQn);
 }
 
 void vcom_Send_Lp( char *format, ... )

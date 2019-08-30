@@ -29,12 +29,19 @@ SOURCE FILE IN WHICH THE LORAWAN APP IS LOCATED
 #include "main.h"
 #include "math.h"
 
+#include <stdlib.h>
+#include <stdarg.h>
+#include "radio.h"
+
 /* VARIABLES */  
 uint8_t 	UART_Receive[FIFO_MAX];				//Global variables allowing the processing of messages received on the UART
 uint8_t 	UART_Received_Char_Nb = 0;		//Counter of the number of characters received on the UART
+uint8_t 	UART_Receive1[FIFO_MAX];				//Global variables allowing the processing of messages received on the UART
+uint8_t 	UART_Received_Char_Nb1 = 0;		//Counter of the number of characters received on the UART
 uint8_t MessageSize;
 
 extern ADC_HandleTypeDef hadc;
+extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 
 extern float temper;
@@ -69,8 +76,220 @@ uint8_t buff_appkey[3] = {0x46,0x0D, 0x0B};
 uint8_t buff_appeui[3] = {0x35,0x0D, 0x0F};
 
 
-/* MAIN FUNCTION THAT RUNS THE LORA STATE MACHINE */ 
+// I2C HANDLER VARIABLE
+extern I2C_HandleTypeDef hi2c1;
 
+uint8_t eep_buf[8] = {0x00,'L',0x01,'o',0x02,'R',0x03,'a'};
+
+uint32_t tchannel=0;
+uint32_t rchannel=0;
+uint32_t pkgcount=0;
+uint32_t bytcount=0;
+
+RadioEvents_t RFEvents;
+/* RF Testing */
+#if defined( REGION_EU868 )
+
+#define RF_FREQUENCY                                868100000 // Hz
+
+#elif defined( USE_BAND_915 )
+
+#define RF_FREQUENCY                                915000000 // Hz
+
+#else
+
+    #error "Please define a frequency band in the compiler options."
+
+#endif
+
+#define TX_OUTPUT_POWER                             10        // 10 dBm 10mW  //20 // 20 dBm 100mW
+
+#define LORA_BANDWIDTH                              0         // [0: 125 kHz,
+                                                              //  1: 250 kHz,
+                                                              //  2: 500 kHz,
+                                                              //  3: Reserved]
+#define LORA_SPREADING_FACTOR                       9         // [SF7..SF12]
+#define LORA_CODINGRATE                             1         // [1: 4/5,
+                                                              //  2: 4/6,
+                                                              //  3: 4/7,
+                                                              //  4: 4/8]
+#define LORA_SYMBOL_TIMEOUT                         128         // Symbols  																															
+#define LORA_PREAMBLE_LENGTH                        8         // Same for Tx and Rx
+#define LORA_FIX_LENGTH_PAYLOAD_ON                  false
+#define LORA_IQ_INVERSION_ON                        false
+
+//ring buffer
+uint8_t rbuf[LORA_PREAMBLE_LENGTH] = {0};
+uint32_t rcount=0;
+uint32_t pcount=0;
+
+#define print(...) u2Send(__VA_ARGS__)	
+void u2Send(char *format, ... )
+{
+	uint16_t len;
+	uint8_t tbuf[1024];
+  va_list args;
+  va_start(args, format);
+	
+	len = vsprintf(tbuf, format, args);
+	HAL_UART_Transmit(&huart2, tbuf, len, HAL_MAX_DELAY);
+}
+
+void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr )
+{
+	/* Blue led flashes */
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
+	//			HAL_Delay(200);
+	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6); 
+	//			HAL_Delay(200);
+	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6); 
+	//			HAL_Delay(200);
+	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
+	//			HAL_Delay(200);
+	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6); 
+	//			HAL_Delay(200);
+	//HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6); 
+			
+	//for(int i=0;i<size;i++)
+	//	print("%.02X ",payload[i]);
+    
+	//print("\n\r size:%d \n\r",size);
+	//print("rssi:%d\n\r",rssi);
+	//print("snr:%d\n\r",snr);
+	//for(int i=0;i<size;i++)
+	//	HAL_UART_Transmit(&huart2, payload+i, 1, HAL_MAX_DELAY);
+	//for(int i=0;i<size;i++)
+	//{
+	//	if(payload[i]=='E')
+	//		pkgcount++;
+	//}
+	
+	//sprintf(rbuf,"package number:%d \n\r",pkgcount);
+	//HAL_UART_Transmit(&huart2, rbuf, strlen(rbuf), HAL_MAX_DELAY);
+	bytcount+=size;
+	sprintf(rbuf,"bytes number:%d \n\r",bytcount);
+	HAL_UART_Transmit(&huart2, rbuf, strlen(rbuf), HAL_MAX_DELAY);	
+	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
+}
+
+void txCarrierTesting()
+{
+    // Radio initialization
+    Radio.Init( NULL );
+
+    Radio.SetChannel( tchannel );
+
+    Radio.SetTxConfig( MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
+                                   LORA_SPREADING_FACTOR, LORA_CODINGRATE,
+                                   LORA_PREAMBLE_LENGTH, LORA_FIX_LENGTH_PAYLOAD_ON,
+                                   true, 0, 0, LORA_IQ_INVERSION_ON, 3000 );
+		
+		//Radio.SetSyncWord( LORA_MAC_PUBLIC_SYNCWORD );
+		
+	// Sets the radio in Tx mode
+	uint32_t tc=0;
+	  while(1)
+		{
+			uint8_t rc[32]={0};
+			//UART_Received_Char_Nb=0;
+			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);
+			Radio.Send( "01234567", 8 );
+			HAL_Delay(256);
+			tc++;
+			sprintf(rc,"%d\n\r",tc);
+			HAL_UART_Transmit(&huart2, rc, strlen(rc), HAL_MAX_DELAY); // Replying by the end frame
+			if(HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_13) == GPIO_PIN_RESET) //B1 pressed
+				break;			
+		}		
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET); //LED3
+		
+}
+
+void txNoCarrierTesting()
+{
+    // Radio initialization
+    Radio.Init( NULL );
+    Radio.SetChannel( tchannel );
+
+    Radio.SetTxConfig( MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
+                                   LORA_SPREADING_FACTOR, LORA_CODINGRATE,
+                                   LORA_PREAMBLE_LENGTH, LORA_FIX_LENGTH_PAYLOAD_ON,
+                                   true, 0, 0, LORA_IQ_INVERSION_ON, 3000 );
+
+    /**********************************************/
+    /*                  WARNING                   */
+    /* The below settings can damage the chipset  */
+    /* if wrongly used. DO NOT CHANGE THE VALUES! */
+    /*                                            */
+    /**********************************************/
+
+    Radio.Write( 0x4B, 0x7B );
+    Radio.Write( 0x3D, 0xAF );
+    Radio.Write( 0x1e, 0x08 );
+    Radio.Write( 0x4C, 0xC0 );
+    Radio.Write( 0x4D, 0x03 );
+    Radio.Write( 0x5A, 0x87 );
+    Radio.Write( 0x63, 0x60 );
+    Radio.Write( 0x01, 0x83 );
+		
+		while(1)
+		{
+			Radio.Send( NULL, 0 );
+			HAL_Delay(256);
+			if(HAL_GPIO_ReadPin(GPIOB,GPIO_PIN_13) == GPIO_PIN_RESET) //B1 pressed
+				break;			
+		}
+}
+
+void rxTesting()
+{
+		pkgcount=0;
+	  bytcount=0;
+    // Radio initialization
+    RFEvents.RxDone = OnRxDone;
+		
+    Radio.Init( &RFEvents );
+
+    switch(rchannel)
+		{
+			case 868100000:
+				rchannel = 868300000;
+				HAL_UART_Transmit(&huart2, "868.3 freq.\n\r", strlen("868.1 freq.\n\r"), HAL_MAX_DELAY);
+				break;
+			case 868300000:
+				rchannel = 868500000;
+				HAL_UART_Transmit(&huart2, "868.5 freq.\n\r", strlen("868.3 freq.\n\r"), HAL_MAX_DELAY);
+				break;
+			case 868500000:
+			default:
+				rchannel=868100000;
+				HAL_UART_Transmit(&huart2, "868.1 freq.\n\r", strlen("868.5 freq.\n\r"), HAL_MAX_DELAY);
+			break;
+		}
+		
+    Radio.SetChannel( rchannel );
+
+#if 1
+
+    Radio.SetRxConfig( MODEM_LORA, LORA_BANDWIDTH, LORA_SPREADING_FACTOR,
+                                   LORA_CODINGRATE, 0, LORA_PREAMBLE_LENGTH,
+                                   LORA_SYMBOL_TIMEOUT, LORA_FIX_LENGTH_PAYLOAD_ON,
+                                   0, true, 0, 0, LORA_IQ_INVERSION_ON, true );
+		//Radio.SetSyncWord( LORA_MAC_PUBLIC_SYNCWORD );
+#else
+
+    Radio.SetRxConfig( MODEM_FSK, FSK_BANDWIDTH, FSK_DATARATE,
+                                  0, FSK_AFC_BANDWIDTH, FSK_PREAMBLE_LENGTH,
+                                  0, FSK_FIX_LENGTH_PAYLOAD_ON, 0, true,
+                                  0, 0, false, true );
+
+#endif
+    
+    Radio.Rx( 0 ); // Continuous Rx
+
+}
+
+/* MAIN FUNCTION THAT RUNS THE LORA STATE MACHINE */ 
 void appli ()
 {
 	/* 1st BATTERY LEVEL MEASUREMENT */ 
@@ -78,7 +297,6 @@ void appli ()
 	batterie = HW_GetBatteryLevel( );
 	batt = 1800 + (7.08 * HW_GetBatteryLevel());
 
-	
 	while(1)
 	{
 		/* STARTING AND INITIALIZING ADC */
@@ -86,7 +304,7 @@ void appli ()
 //		HAL_ADC_Start(&hadc);
 		
 		/* UART RECEPTION */ 
-		
+		HAL_UART_Receive_IT(&huart1, buff, 4);
 		HAL_UART_Receive_IT(&huart2, buff, 4);
 		
 		// RECEIVING THE APP_KEY VIA UART (frame ended by  0x46 0x0D 0x0B)
@@ -174,7 +392,6 @@ void appli ()
 		}
 		
 		
-		
 		//Reading current appeui (frame ended by  0x53 0xD0 0xF0)
 		if((UART_Receive[UART_Received_Char_Nb-3] == 0x53 && UART_Receive[UART_Received_Char_Nb-2] == 0xD0) && (UART_Receive[UART_Received_Char_Nb-1] == 0xF0))
 		{
@@ -208,8 +425,6 @@ void appli ()
 			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_6);			
 			HAL_Delay(300);
 		};*/
-		
-		
 		
 		
 		/* LEDS MANAGEMENT */
@@ -257,22 +472,29 @@ void appli ()
 		}
 				
 		/* LORA STATE MACHINE */
-		
-		lora_fsm( );
-		
-		/* USER CODE */
+		lora_fsm();
 					
 		
 		/* LOW POWER */ 
 		
 		#if defined ( LOW_POWER_ACTIVATED )		
+
+			low_power();
 		
-			//low_power();
+		#else
+		if(UART_Received_Char_Nb1)
+		{
+			HAL_UART_Transmit(&huart2, UART_Receive1, UART_Received_Char_Nb1, HAL_MAX_DELAY);
+			UART_Received_Char_Nb1 = 0;
+		}
 		
+		//PRINTF("RS-485");
+		//vcom_Print();	//for QE testing
+
 		#endif
 					
+
 	}
-	
 }
 
 
@@ -372,7 +594,7 @@ void LoraRxData( lora_AppData_t *AppData )
 	
 	/*lora message received from the cloudgate is retransmitted on the UART*/
 	//HAL_UART_Transmit(&huart2, AppData->Buff, AppData->BuffSize, HAL_MAX_DELAY);
-	
+	PRINTF("LoRa message received!\n\r");
 }
 
 void low_power()

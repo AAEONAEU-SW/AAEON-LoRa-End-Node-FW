@@ -136,7 +136,7 @@ void HW_Init( void )
 
     HW_RTC_Init( );
     
-   //vcom_Init( );
+    vcom_Init( );
     
     //BSP_sensor_Init( );
     
